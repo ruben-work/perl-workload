@@ -1,0 +1,86 @@
+#!/usr/bin/env perl
+
+# Author: Ruben
+use v5.18;
+use List::Util qw(min max);
+
+my $N_TIMES = 10;
+
+die "USAGE: $0 old_perl new_perl script1.pl ..."  if @ARGV < 3;
+my($perl1,$perl2,@scripts) = @ARGV;
+
+# Todo: improve
+my $is_darwin = `uname -s` =~ /^Darwin/;
+
+my @stats = get_running_times();
+say "\nResults:";
+
+for my $r (@stats) {
+    say "______";
+    # print the name of the script
+    say shift @scripts;
+    printf("median: %g vs %g | mean: %g vs %g | min: %g vs %g | max: %g vs %g\n", @$r);
+    my($median1,$median2) = @$r;
+    my $change = sprintf("%.3f", (($median1/$median2) - 1) * 100);
+    $change = $median1 >= $median2  ? "+$change" : "$change";
+    say ">>> change: " . $change . '%';
+}
+
+sub get_running_times {
+    my @out;
+    for my $c (@scripts) {
+        say $c;
+        doit("$perl1 $c"); # warmup
+        doit("$perl2 $c"); # warmup
+        my (@times1,@times2);
+
+        print "[";
+        for my $i(1 .. $N_TIMES) {
+            print "█";
+            push @times1, doit("$perl1 $c");
+            push @times2, doit("$perl2 $c");
+        }
+        print "]\n";
+
+        push @out, [
+            median(@times1), median(@times2),
+            mean(@times1), mean(@times2),
+            min(@times1), min(@times2),
+            max(@times1), max(@times2)
+        ];
+    }
+    return @out;
+}
+
+sub doit {
+    my $script = shift;
+    my $running_as_root = $> == 0;
+    my $cmd = $is_darwin ? "time -l $script" : "/usr/bin/time -v -p $script";
+    $cmd = "nice -n -20 $cmd" if $running_as_root;
+    $cmd = "$cmd 2>&1";
+
+    my $out = `$cmd`;
+    die $out unless ($? == 0);
+  
+    my($utime,)= $is_darwin ? ($out =~ /([0-9\.]+) user/)
+        : ($out =~ /User time.*?: ([0-9\.]+)/);
+
+    return $utime;
+}
+
+sub mean  {
+    my @elements = @_;
+    my $sum;
+    $sum += $_ for @elements;
+    return $sum / scalar @elements;
+}
+
+sub median {
+    my @elements = sort { $a <=> $b } @_;
+    my $n = scalar @elements;
+    if($n % 2 == 0) {
+        return ($elements[($n/2) - 1]  + $elements[($n/2)]) / 2;
+    } else {
+        return $elements[($n - 1)/2];
+    }
+}
