@@ -1,7 +1,6 @@
 # Author: Ruben
 
 use v5.18;
-use Data::Dumper;
 
 # Solve system of linear equations using Gaussian elimination
 # Example matrix from wikipedia: https://en.wikipedia.org/wiki/Gaussian_elimination#Example_of_the_algorithm
